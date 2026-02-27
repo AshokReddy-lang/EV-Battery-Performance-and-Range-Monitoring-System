@@ -18,7 +18,7 @@ CSS
 Bootstrap
 Pandas
 
-# Dashboaard link
+# Dashboard link
 https://public.tableau.com/views/EVBatteryPerformanceandRangeMonitoringSystem/EvDashBoard?:language=en-GB&:sid=&:redirect=auth&:display_count=n&:origin=viz_share_link
 
 # story link
