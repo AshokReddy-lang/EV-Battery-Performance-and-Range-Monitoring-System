@@ -10,13 +10,13 @@ Accurate electric vehicle range analysis is crucial for optimizing trip planning
 
 # Technologies Used
 
-Python
-Flask
-Tableau
-HTML
-CSS
-Bootstrap
-Pandas
+* Python
+* Flask
+* Tableau
+* HTML
+* CSS
+* Bootstrap
+* Pandas
 
 # Dashboard link
 https://public.tableau.com/views/EVBatteryPerformanceandRangeMonitoringSystem/EvDashBoard?:language=en-GB&:sid=&:redirect=auth&:display_count=n&:origin=viz_share_link
@@ -28,14 +28,14 @@ https://public.tableau.com/views/Tableau_17718657991890/StoryofElectriccarsinInd
 
 1. Which EV brands lead battery performance globally?
 2. How does temperature affect EV range predictions?
-Which Indian states dominate EV registrations?
-What velocity optimizes battery energy efficiency?
-Which models show fastest range degradation?
-How do charging cycles impact battery SoH?
-What drives India's EV adoption growth rate?
-Which factors cause real vs. lab range gaps?
-Top 5 EV manufacturers by market share?
-Optimal charging station locations in India?
+3. Which Indian states dominate EV registrations?
+4. What velocity optimizes battery energy efficiency?
+5. Which models show fastest range degradation?
+6. How do charging cycles impact battery SoH?
+7. What drives India's EV adoption growth rate?
+8. Which factors cause real vs. lab range gaps?
+9. Top 5 EV manufacturers by market share?
+10. Optimal charging station locations in India?
 
 
 # EV Battery & Range Insights
