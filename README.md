@@ -26,8 +26,8 @@ https://public.tableau.com/views/Tableau_17718657991890/StoryofElectriccarsinInd
 
 # key Questions Explored
 
-Which EV brands lead battery performance globally?
-How does temperature affect EV range predictions?
+1. Which EV brands lead battery performance globally?
+2. How does temperature affect EV range predictions?
 Which Indian states dominate EV registrations?
 What velocity optimizes battery energy efficiency?
 Which models show fastest range degradation?
