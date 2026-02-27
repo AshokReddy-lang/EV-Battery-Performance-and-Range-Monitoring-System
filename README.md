@@ -1,4 +1,4 @@
-#Project Description
+# Project Description
 
 This project is an interactive web application built using Flask that embeds Tableau dashboards to visualize electric vehicle charging patterns, battery performance, and driving range analysis.
 
