@@ -17,3 +17,8 @@ HTML
 CSS
 Bootstrap
 Pandas
+
+##Dashboaard link
+https://public.tableau.com/views/EVBatteryPerformanceandRangeMonitoringSystem/EvDashBoard?:language=en-GB&:sid=&:redirect=auth&:display_count=n&:origin=viz_share_link
+##story link
+https://public.tableau.com/views/Tableau_17718657991890/StoryofElectriccarsinIndia?:language=en-GB&:sid=&:redirect=auth&:display_count=n&:origin=viz_share_link
