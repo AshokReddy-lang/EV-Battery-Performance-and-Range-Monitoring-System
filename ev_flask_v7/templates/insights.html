@@ -1,0 +1,337 @@
+{% extends "base.html" %}
+{% block title %}ML Insights — EV Intelligence{% endblock %}
+{% block nav_ins %}active{% endblock %}
+
+{% block extra_head %}
+<style>
+/* ── PAGE HEADER ── */
+.ins-hero{padding:40px 0 32px;border-bottom:1px solid var(--bdr);margin-bottom:36px;}
+.ins-hero h2{font-family:'Rajdhani',sans-serif;font-size:2.2rem;font-weight:700;letter-spacing:3px;color:#fff;margin-bottom:10px;}
+.ins-hero h2 em{font-style:normal;color:var(--c1);}
+.ins-hero p{font-family:'Share Tech Mono',monospace;font-size:.7rem;letter-spacing:1.5px;color:var(--txtd);line-height:1.9;}
+
+/* ── FILTER TABS ── */
+.filter-bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:32px;}
+.ftab{font-family:'Share Tech Mono',monospace;font-size:.62rem;letter-spacing:2px;text-transform:uppercase;
+  padding:7px 18px;border-radius:3px;border:1px solid var(--bdr);background:transparent;color:var(--txtd);cursor:pointer;transition:all .25s;}
+.ftab:hover,.ftab.active{color:var(--c1);border-color:rgba(0,212,255,.35);background:rgba(0,212,255,.07);}
+
+/* ── SECTION LABELS ── */
+.cat-label{display:flex;align-items:center;gap:12px;margin:36px 0 20px;}
+.cat-label .cl-num{font-family:'Share Tech Mono',monospace;font-size:.58rem;letter-spacing:3px;color:var(--c1);
+  background:rgba(0,212,255,.08);border:1px solid rgba(0,212,255,.2);padding:4px 12px;}
+.cat-label .cl-title{font-family:'Rajdhani',sans-serif;font-size:1.1rem;font-weight:700;letter-spacing:3px;color:#fff;text-transform:uppercase;}
+.cat-label .cl-line{flex:1;height:1px;background:linear-gradient(90deg,var(--bdr),transparent);}
+
+/* ── CHART GRID ── */
+.chart-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;}
+.chart-grid-1{display:grid;grid-template-columns:1fr;gap:20px;margin-bottom:20px;}
+
+/* ── CHART CARD ── */
+.chart-card{background:var(--s1);border:1px solid var(--bdr);border-radius:8px;overflow:hidden;
+  transition:transform .3s,box-shadow .3s;position:relative;}
+.chart-card:hover{transform:translateY(-3px);box-shadow:0 0 28px rgba(0,212,255,.2);}
+.chart-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,var(--c1),var(--c2),transparent);opacity:.5;}
+.cc-header{padding:14px 20px;border-bottom:1px solid var(--bdr);background:var(--s2);
+  display:flex;align-items:center;justify-content:space-between;}
+.cc-title{font-family:'Share Tech Mono',monospace;font-size:.68rem;letter-spacing:2px;color:var(--c1);text-transform:uppercase;}
+.cc-tag{font-family:'Share Tech Mono',monospace;font-size:.56rem;letter-spacing:1px;color:var(--txtd);
+  background:var(--s3);border:1px solid var(--bdr);padding:3px 9px;border-radius:2px;}
+.cc-img{display:block;width:100%;height:auto;background:var(--s2);}
+.cc-body{padding:14px 20px;border-top:1px solid var(--bdr);}
+.cc-insight{font-family:'Share Tech Mono',monospace;font-size:.62rem;letter-spacing:1px;color:var(--txtd);line-height:1.8;}
+.cc-insight strong{color:var(--c1);}
+
+/* ── KEY METRICS STRIP ── */
+.metrics-strip{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin:28px 0;}
+.ms-card{background:var(--s1);border:1px solid var(--bdr);border-radius:6px;padding:16px 14px;text-align:center;}
+.ms-label{font-family:'Share Tech Mono',monospace;font-size:.56rem;letter-spacing:1.5px;color:var(--txtd);margin-bottom:6px;text-transform:uppercase;}
+.ms-val{font-family:'Rajdhani',sans-serif;font-size:1.5rem;font-weight:700;}
+.ms-sub{font-family:'Share Tech Mono',monospace;font-size:.55rem;color:var(--txtd);margin-top:3px;}
+
+/* ── FULLSCREEN OVERLAY ── */
+.img-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:9999;
+  align-items:center;justify-content:center;cursor:zoom-out;}
+.img-overlay.active{display:flex;}
+.img-overlay img{max-width:90vw;max-height:90vh;border-radius:6px;border:1px solid var(--bdr);}
+.overlay-close{position:absolute;top:20px;right:28px;font-size:2rem;color:var(--txtd);cursor:pointer;
+  font-family:'Share Tech Mono',monospace;line-height:1;}
+.overlay-close:hover{color:var(--c1);}
+
+/* click-to-zoom hint */
+.chart-card img{cursor:zoom-in;}
+
+@media(max-width:900px){.chart-grid-2{grid-template-columns:1fr;}.metrics-strip{grid-template-columns:repeat(2,1fr);}}
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Fullscreen overlay -->
+<div class="img-overlay" id="overlay" onclick="closeOverlay()">
+  <div class="overlay-close" onclick="closeOverlay()">✕</div>
+  <img id="overlayImg" src="" alt="">
+</div>
+
+<!-- Hero -->
+<div class="ins-hero fade-up">
+  <h2>ML <em>Insights</em> &amp; Visualisations</h2>
+  <p>12 charts from the freshly retrained pipeline · Ensemble (RF + Extra Trees + Hist Gradient Boosting) · 192 EVs · 3 Datasets merged<br>
+  Click any chart to expand · Scroll to explore all sections</p>
+</div>
+
+<!-- Key metrics strip -->
+<div class="metrics-strip fade-up">
+  <div class="ms-card"><div class="ms-label">Efficiency R²</div><div class="ms-val" style="color:var(--c1)">0.829</div><div class="ms-sub">HistGB</div></div>
+  <div class="ms-card"><div class="ms-label">Range R²</div><div class="ms-val" style="color:var(--c2)">0.835</div><div class="ms-sub">Extra Trees</div></div>
+  <div class="ms-card"><div class="ms-label">Eff. RMSE</div><div class="ms-val" style="color:var(--c3)">13.82</div><div class="ms-sub">Wh/km</div></div>
+  <div class="ms-card"><div class="ms-label">Range RMSE</div><div class="ms-val" style="color:var(--c3)">48.43</div><div class="ms-sub">km</div></div>
+  <div class="ms-card"><div class="ms-label">Best Base</div><div class="ms-val" style="color:var(--c5);font-size:1.1rem">Extra<br>Trees</div><div class="ms-sub">R²=0.90 Range</div></div>
+</div>
+
+<!-- ── SECTION 1: DATA OVERVIEW ── -->
+<div class="cat-label fade-up">
+  <div class="cl-num">01–02</div>
+  <div class="cl-title">Data Overview &amp; Feature Correlations</div>
+  <div class="cl-line"></div>
+</div>
+
+<div class="chart-grid-2 fade-up">
+  <div class="chart-card">
+    <div class="cc-header">
+      <div class="cc-title">Dataset Overview &amp; Target Distributions</div>
+      <div class="cc-tag">CHART 01</div>
+    </div>
+    <img class="cc-img" src="/static/charts/01_dataset_overview.png" alt="Dataset Overview" onclick="openOverlay(this.src)">
+    <div class="cc-body">
+      <div class="cc-insight">
+        <strong>103</strong> ElectricCarData (primary) · <strong>180</strong> Cheapest EVs (secondary) · <strong>12</strong> EVIndia (supplement).
+        Mean Efficiency <strong>191 Wh/km</strong> · Mean Range <strong>343 km</strong>. Charging station data excluded (no EV specs).
+      </div>
+    </div>
+  </div>
+  <div class="chart-card">
+    <div class="cc-header">
+      <div class="cc-title">Feature Correlation Heatmap</div>
+      <div class="cc-tag">CHART 02</div>
+    </div>
+    <img class="cc-img" src="/static/charts/02_correlation_heatmap.png" alt="Correlation Heatmap" onclick="openOverlay(this.src)">
+    <div class="cc-body">
+      <div class="cc-insight">
+        Strong predictors for Range: <strong>Capacity (0.86)</strong>, Fast Charge (0.75), Top Speed (0.70).
+        Efficiency driven by <strong>Aero Penalty (corr with TopSpeed²)</strong>. AccelSec negatively correlated (−0.70) with Range.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── SECTION 2: FEATURE RELATIONSHIPS ── -->
+<div class="cat-label fade-up">
+  <div class="cl-num">03–05</div>
+  <div class="cl-title">Feature Relationships &amp; Segment Analysis</div>
+  <div class="cl-line"></div>
+</div>
+
+<div class="chart-grid-1 fade-up">
+  <div class="chart-card">
+    <div class="cc-header">
+      <div class="cc-title">Key Feature Relationships — 6-Panel Scatter</div>
+      <div class="cc-tag">CHART 03</div>
+    </div>
+    <img class="cc-img" src="/static/charts/03_feature_relationships.png" alt="Feature Relationships" onclick="openOverlay(this.src)">
+    <div class="cc-body">
+      <div class="cc-insight">
+        <strong>Battery Capacity vs Range</strong>: near-linear relationship (strongest signal). <strong>Top Speed vs Efficiency</strong>: moderate positive trend above ~200 km/h.
+        <strong>Fast Charge Speed vs Range</strong>: higher fast-charge correlates strongly with longer range EVs. Performance Index tightly clusters efficient EVs.
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="chart-grid-2 fade-up">
+  <div class="chart-card">
+    <div class="cc-header">
+      <div class="cc-title">Segment &amp; Body Style Analysis</div>
+      <div class="cc-tag">CHART 04</div>
+    </div>
+    <img class="cc-img" src="/static/charts/04_segment_bodystyle_analysis.png" alt="Segment Analysis" onclick="openOverlay(this.src)">
+    <div class="cc-body">
+      <div class="cc-insight">
+        Segment <strong>S</strong> leads in range (~960 km). Segments <strong>E &amp; N</strong> have highest avg efficiency usage (240+ Wh/km).
+        <strong>Liftbacks &amp; Hatchbacks</strong> are most efficient body styles. Pickups and SPVs consume the most energy.
+      </div>
+    </div>
+  </div>
+  <div class="chart-card">
+    <div class="cc-header">
+      <div class="cc-title">Drivetrain Analysis</div>
+      <div class="cc-tag">CHART 05</div>
+    </div>
+    <img class="cc-img" src="/static/charts/05_drivetrain_analysis.png" alt="Drivetrain Analysis" onclick="openOverlay(this.src)">
+    <div class="cc-body">
+      <div class="cc-insight">
+        <strong>AWD</strong> has highest avg range (~420 km) but also highest energy consumption (204 Wh/km).
+        <strong>FWD</strong> most efficient (median ~175 Wh/km) with tightest distribution.
+        RWD balances performance and efficiency in premium models.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── SECTION 3: MODEL PERFORMANCE ── -->
+<div class="cat-label fade-up">
+  <div class="cl-num">06–08</div>
+  <div class="cl-title">Model Performance &amp; Residual Analysis</div>
+  <div class="cl-line"></div>
+</div>
+
+<div class="chart-grid-1 fade-up">
+  <div class="chart-card">
+    <div class="cc-header">
+      <div class="cc-title">Model Performance Comparison — All Algorithms</div>
+      <div class="cc-tag">CHART 06</div>
+    </div>
+    <img class="cc-img" src="/static/charts/06_model_comparison.png" alt="Model Comparison" onclick="openOverlay(this.src)">
+    <div class="cc-body">
+      <div class="cc-insight">
+        <strong>HistGradientBoosting</strong> is the best model for Efficiency: CV R²=<strong>0.829</strong>, RMSE=13.82 Wh/km.
+        <strong>Extra Trees</strong> leads for Range: CV R²=<strong>0.835</strong>, RMSE=48.43 km.
+        Final deployed models use dedicated best-algorithm per target: HistGB for efficiency, Extra Trees for range.
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="chart-grid-2 fade-up">
+  <div class="chart-card">
+    <div class="cc-header">
+      <div class="cc-title">Actual vs Predicted — Ensemble Models</div>
+      <div class="cc-tag">CHART 07</div>
+    </div>
+    <img class="cc-img" src="/static/charts/07_actual_vs_predicted.png" alt="Actual vs Predicted" onclick="openOverlay(this.src)">
+    <div class="cc-body">
+      <div class="cc-insight">
+        Points cluster tightly around the perfect-fit diagonal. Range model shows slight underprediction for ultra-long-range outliers (&gt;600 km).
+        Efficiency model has wider spread at extreme values (280 Wh/km) — expected for rare high-consumption vehicles.
+      </div>
+    </div>
+  </div>
+  <div class="chart-card">
+    <div class="cc-header">
+      <div class="cc-title">Residual Analysis (±1σ Bands)</div>
+      <div class="cc-tag">CHART 08</div>
+    </div>
+    <img class="cc-img" src="/static/charts/08_residuals.png" alt="Residuals" onclick="openOverlay(this.src)">
+    <div class="cc-body">
+      <div class="cc-insight">
+        Residuals are mostly random around zero — no systematic bias. Efficiency σ=<strong>14.9 Wh/km</strong> · Range σ=<strong>37.8 km</strong>.
+        A few outliers at extremes indicate the ensemble may benefit from more data at ultra-high range (&gt;700 km).
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── SECTION 4: FEATURE IMPORTANCE + CV ── -->
+<div class="cat-label fade-up">
+  <div class="cl-num">09–10</div>
+  <div class="cl-title">Feature Importance &amp; Cross-Validation Stability</div>
+  <div class="cl-line"></div>
+</div>
+
+<div class="chart-grid-1 fade-up">
+  <div class="chart-card">
+    <div class="cc-header">
+      <div class="cc-title">Random Forest Feature Importance — Both Models</div>
+      <div class="cc-tag">CHART 09</div>
+    </div>
+    <img class="cc-img" src="/static/charts/09_feature_importance.png" alt="Feature Importance" onclick="openOverlay(this.src)">
+    <div class="cc-body">
+      <div class="cc-insight">
+        <strong>Efficiency model</strong>: Number of Seats dominates (0.330) → larger vehicles use more energy. Performance Index second (0.207).
+        <strong>Range model</strong>: Fast Charge Speed is #1 (0.246) → premium fast-charge tech correlates with larger batteries.
+        Aero Penalty (Top Speed²/10000) is #2 for Range (0.160) — aerodynamics matter at highway speeds.
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="chart-grid-1 fade-up">
+  <div class="chart-card">
+    <div class="cc-header">
+      <div class="cc-title">5-Fold Cross-Validation R² Stability</div>
+      <div class="cc-tag">CHART 10</div>
+    </div>
+    <img class="cc-img" src="/static/charts/10_cross_validation.png" alt="Cross Validation" onclick="openOverlay(this.src)">
+    <div class="cc-body">
+      <div class="cc-insight">
+        <strong>Extra Trees</strong> achieves best CV stability: Efficiency 0.684 ± moderate variance, Range <strong>0.768</strong>.
+        Ridge Regression has high variance (wide error bars) — unstable due to non-linearity.
+        Extra Trees and Random Forest show similar CV scores — ensemble averages their strengths.
+        CV scores lower than test R² indicates some overfitting on small dataset (192 samples).
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── SECTION 5: RANKINGS + METRICS SUMMARY ── -->
+<div class="cat-label fade-up">
+  <div class="cl-num">11–12</div>
+  <div class="cl-title">EV Rankings &amp; Full Metrics Summary</div>
+  <div class="cl-line"></div>
+</div>
+
+<div class="chart-grid-2 fade-up">
+  <div class="chart-card">
+    <div class="cc-header">
+      <div class="cc-title">Top 10 EVs — Efficiency &amp; Range Rankings</div>
+      <div class="cc-tag">CHART 11</div>
+    </div>
+    <img class="cc-img" src="/static/charts/11_top10_evs.png" alt="Top 10 EVs" onclick="openOverlay(this.src)">
+    <div class="cc-body">
+      <div class="cc-insight">
+        <strong>Hyundai</strong> &amp; Tesla dominate efficiency (lowest Wh/km: ~105–155).
+        <strong>Tesla</strong> leads in range (top 4 spots, up to 970 km).
+        Lucid &amp; Lightyear appear in both lists — validating real-world EV innovation.
+      </div>
+    </div>
+  </div>
+  <div class="chart-card">
+    <div class="cc-header">
+      <div class="cc-title">Full Metrics Summary — All Models</div>
+      <div class="cc-tag">CHART 12</div>
+    </div>
+    <img class="cc-img" src="/static/charts/12_metrics_summary.png" alt="Metrics Summary" onclick="openOverlay(this.src)">
+    <div class="cc-body">
+      <div class="cc-insight">
+        <strong>Extra Trees</strong>: best for Range (CV R²=0.835, RMSE=48.43 km). HistGB leads Efficiency (CV R²=0.829, RMSE=13.82 Wh/km).
+        Ensemble slightly trails Extra Trees alone but is more robust across unseen data.
+        Ridge Regression is clearly unfit (RMSE=27.71 Wh/km) — use tree-based models for EV prediction.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- CTA -->
+<div style="text-align:center;padding:40px 0 20px;" class="fade-up">
+  <p style="font-family:'Share Tech Mono',monospace;font-size:.68rem;letter-spacing:2px;color:var(--txtd);margin-bottom:20px;">READY TO TRY THE MODEL IN ACTION?</p>
+  <a href="/predictor" class="btn btn-p" style="margin-right:12px">🧠 Open ML Predictor</a>
+  <a href="/analysis" class="btn btn-g">🗂️ View Dataset Analysis</a>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function openOverlay(src){
+  document.getElementById('overlayImg').src=src;
+  document.getElementById('overlay').classList.add('active');
+  document.body.style.overflow='hidden';
+}
+function closeOverlay(){
+  document.getElementById('overlay').classList.remove('active');
+  document.body.style.overflow='';
+}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeOverlay();});
+</script>
+{% endblock %}

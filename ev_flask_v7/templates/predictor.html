@@ -1,0 +1,427 @@
+{% extends "base.html" %}
+{% block title %}ML Predictor — EV Intelligence{% endblock %}
+{% block nav_pred %}active{% endblock %}
+
+{% block extra_head %}
+<style>
+.pred-layout{display:grid;grid-template-columns:420px 1fr;gap:24px;align-items:start;}
+.input-panel{background:var(--s1);border:1px solid var(--bdr);border-radius:8px;overflow:hidden;position:sticky;top:90px;}
+.ip-hdr{padding:16px 22px;background:var(--s2);border-bottom:1px solid var(--bdr);}
+.ip-hdr-title{font-family:'Rajdhani',sans-serif;font-size:1.1rem;font-weight:700;letter-spacing:2px;color:#fff;}
+.ip-hdr-sub{font-family:'Share Tech Mono',monospace;font-size:.6rem;letter-spacing:2px;color:var(--txtd);margin-top:4px;}
+.ip-body{padding:22px;}
+
+.result-panel{display:flex;flex-direction:column;gap:18px;}
+
+/* Score cards */
+.score-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.score-card{background:var(--s1);border:1px solid var(--bdr);border-radius:8px;padding:24px;text-align:center;position:relative;overflow:hidden;transition:box-shadow .3s;}
+.score-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;}
+.score-card.eff-c::before{background:linear-gradient(90deg,var(--c1),var(--c5));}
+.score-card.rng-c::before{background:linear-gradient(90deg,var(--c2),var(--c1));}
+.sc-label{font-family:'Share Tech Mono',monospace;font-size:.6rem;letter-spacing:3px;color:var(--txtd);text-transform:uppercase;margin-bottom:12px;}
+.sc-val{font-family:'Rajdhani',sans-serif;font-size:3.2rem;font-weight:700;line-height:1;transition:all .4s;}
+.sc-unit{font-family:'Share Tech Mono',monospace;font-size:.72rem;color:var(--txtd);margin-top:6px;}
+
+/* Derived metrics */
+.derived-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
+.drv{background:var(--s1);border:1px solid var(--bdr);border-radius:6px;padding:16px 14px;text-align:center;}
+.drv-lbl{font-family:'Share Tech Mono',monospace;font-size:.55rem;letter-spacing:1.5px;color:var(--txtd);margin-bottom:6px;text-transform:uppercase;}
+.drv-val{font-family:'Rajdhani',sans-serif;font-size:1.45rem;font-weight:700;color:var(--c1);}
+.drv-sub{font-family:'Share Tech Mono',monospace;font-size:.55rem;color:var(--txtd);margin-top:3px;}
+
+/* Feature importance mini-bars */
+.fi-section{background:var(--s1);border:1px solid var(--bdr);border-radius:8px;overflow:hidden;}
+.fi-hdr{padding:12px 18px;background:var(--s2);border-bottom:1px solid var(--bdr);font-family:'Share Tech Mono',monospace;font-size:.65rem;letter-spacing:2px;color:var(--c1);text-transform:uppercase;}
+.fi-body{padding:18px;}
+.fi-row{display:flex;align-items:center;gap:10px;margin-bottom:9px;}
+.fi-name{font-family:'Share Tech Mono',monospace;font-size:.6rem;letter-spacing:1px;color:var(--txtd);width:130px;flex-shrink:0;}
+.fi-bar-wrap{flex:1;height:6px;background:var(--s3);border-radius:3px;overflow:hidden;}
+.fi-bar{height:100%;border-radius:3px;transition:width 1s ease;}
+.fi-pct{font-family:'Rajdhani',monospace;font-size:.8rem;font-weight:600;color:var(--c1);width:42px;text-align:right;}
+
+/* Model comparison mini */
+.mdl-cmp{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.mdl-row{background:var(--s1);border:1px solid var(--bdr);border-radius:6px;padding:14px 16px;}
+.mdl-title{font-family:'Share Tech Mono',monospace;font-size:.6rem;letter-spacing:2px;color:var(--txtd);text-transform:uppercase;margin-bottom:8px;}
+.mdl-val{display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;}
+.mdl-name{font-family:'Share Tech Mono',monospace;font-size:.62rem;color:var(--txtd);}
+.mdl-score{font-family:'Rajdhani',sans-serif;font-size:1rem;font-weight:700;color:var(--c2);}
+
+/* Segment badge */
+.seg-badge{display:inline-flex;align-items:center;gap:8px;padding:6px 16px;border-radius:3px;
+  font-family:'Share Tech Mono',monospace;font-size:.65rem;letter-spacing:1.5px;text-transform:uppercase;margin-top:10px;}
+
+/* Select styling */
+.sel-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;}
+
+@media(max-width:1100px){.pred-layout{grid-template-columns:1fr;}.input-panel{position:static;}}
+@media(max-width:700px){.score-row{grid-template-columns:1fr;}.derived-grid{grid-template-columns:1fr 1fr;}.mdl-cmp{grid-template-columns:1fr;}}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="sec-hdr">
+  <div class="sec-title">ML Predictor</div>
+  <div class="sec-line"></div>
+  <div class="sec-tag">ENSEMBLE · 13 FEATURES · LIVE API</div>
+</div>
+
+<div class="pred-layout">
+
+  <!-- ── INPUT PANEL ── -->
+  <div class="input-panel">
+    <div class="ip-hdr">
+      <div class="ip-hdr-title">🧠 Configure EV Specs</div>
+      <div class="ip-hdr-sub">POST → /api/predict → Ensemble model inference</div>
+    </div>
+    <div class="ip-body">
+
+      <!-- Continuous sliders -->
+      <div class="form-grp">
+        <div class="f-label">Acceleration 0–100 km/h<span class="val" id="vAccel">7.5 s</span></div>
+        <input type="range" id="sAccel" min="1.5" max="15" step="0.1" value="7.5" oninput="updateVal('vAccel',this.value,' s');run()">
+        <div class="tick-row"><span>1.5s</span><span>Sport</span><span>15s</span></div>
+      </div>
+      <div class="form-grp">
+        <div class="f-label">Top Speed<span class="val" id="vSpeed">180 km/h</span></div>
+        <input type="range" id="sSpeed" min="100" max="280" step="5" value="180" oninput="updateVal('vSpeed',this.value,' km/h');run()">
+        <div class="tick-row"><span>100</span><span></span><span>280</span></div>
+      </div>
+      <div class="form-grp">
+        <div class="f-label">Battery Capacity<span class="val" id="vCap">75 kWh</span></div>
+        <input type="range" id="sCap" min="15" max="130" step="1" value="75" oninput="updateVal('vCap',this.value,' kWh');run()">
+        <div class="tick-row"><span>15</span><span></span><span>130</span></div>
+      </div>
+      <div class="form-grp">
+        <div class="f-label">Fast Charge Speed<span class="val" id="vFC">400 km/h</span></div>
+        <input type="range" id="sFC" min="0" max="1050" step="50" value="400" oninput="updateVal('vFC',this.value,' km/h');run()">
+        <div class="tick-row"><span>0 (none)</span><span></span><span>1050</span></div>
+      </div>
+      <div class="form-grp">
+        <div class="f-label">Number of Seats<span class="val" id="vSeats">5</span></div>
+        <input type="range" id="sSeats" min="2" max="9" step="1" value="5" oninput="updateVal('vSeats',this.value,'');run()">
+        <div class="tick-row"><span>2</span><span>5</span><span>9</span></div>
+      </div>
+
+      <!-- Categorical dropdowns -->
+      <div class="sel-row">
+        <div class="form-grp" style="margin-bottom:0">
+          <div class="f-label" style="margin-bottom:7px">Drivetrain</div>
+          <select id="sPT" onchange="run()">
+            <option value="FWD">FWD</option>
+            <option value="RWD">RWD</option>
+            <option value="AWD" selected>AWD</option>
+          </select>
+        </div>
+        <div class="form-grp" style="margin-bottom:0">
+          <div class="f-label" style="margin-bottom:7px">Segment</div>
+          <select id="sSeg" onchange="run()">
+            <option value="A">A — City</option>
+            <option value="B">B — Supermini</option>
+            <option value="C" selected>C — Compact</option>
+            <option value="D">D — Mid-size</option>
+            <option value="E">E — Executive</option>
+            <option value="F">F — Luxury</option>
+          </select>
+        </div>
+      </div>
+      <div class="sel-row" style="margin-top:12px;">
+        <div class="form-grp" style="margin-bottom:0">
+          <div class="f-label" style="margin-bottom:7px">Body Style</div>
+          <select id="sBS" onchange="run()">
+            <option value="SUV" selected>SUV</option>
+            <option value="Sedan">Sedan</option>
+            <option value="Hatchback">Hatchback</option>
+            <option value="Liftback">Liftback</option>
+            <option value="MPV">MPV</option>
+            <option value="Station">Station</option>
+            <option value="Cabrio">Cabrio</option>
+            <option value="Pickup">Pickup</option>
+            <option value="SPV">SPV</option>
+            <option value="Compact SUV">Compact SUV</option>
+            <option value="Premium Coupe">Premium Coupe</option>
+            <option value="Subcompact Sedan">Subcompact Sedan</option>
+            <option value="Unknown">Unknown</option>
+          </select>
+        </div>
+        <div class="form-grp" style="margin-bottom:0">
+          <div class="f-label" style="margin-bottom:7px">Rapid Charge</div>
+          <select id="sRC" onchange="run()">
+            <option value="Yes" selected>Yes</option>
+            <option value="No">No</option>
+          </select>
+        </div>
+      </div>
+
+      <div style="margin-top:20px;">
+        <button class="run-btn" onclick="run()">⚡ PREDICT NOW</button>
+      </div>
+      <div class="spinner-wrap" id="spinner"><div class="spinner"></div>Calling /api/predict…</div>
+    </div>
+  </div>
+
+  <!-- ── RESULT PANEL ── -->
+  <div class="result-panel">
+
+    <!-- Primary predictions -->
+    <div class="score-row fade-up">
+      <div class="score-card eff-c">
+        <div class="sc-label">⚡ Predicted Efficiency</div>
+        <div class="sc-val" id="rEff" style="color:var(--txtd);font-size:1.8rem">Click Predict</div>
+        <div class="sc-unit">Wh/km (lower = better)</div>
+        <div id="effBadge" style="margin-top:10px;"></div>
+      </div>
+      <div class="score-card rng-c">
+        <div class="sc-label">🛣️ Predicted Range</div>
+        <div class="sc-val" id="rRng" style="color:var(--txtd);font-size:1.8rem">Click Predict</div>
+        <div class="sc-unit">km (WLTP estimate)</div>
+        <div id="segBadge" style="margin-top:10px;"></div>
+      </div>
+    </div>
+
+    <!-- Derived metrics -->
+    <div class="derived-grid fade-up">
+      <div class="drv"><div class="drv-lbl">Real-world Range</div><div class="drv-val" id="dReal">—</div><div class="drv-sub">km (×0.87 factor)</div></div>
+      <div class="drv"><div class="drv-lbl">Cost per km</div><div class="drv-val" id="dCost">—</div><div class="drv-sub">€ at €0.15/kWh</div></div>
+      <div class="drv"><div class="drv-lbl">Range / kWh</div><div class="drv-val" id="dValue">—</div><div class="drv-sub">km per kWh (value index)</div></div>
+      <div class="drv"><div class="drv-lbl">Efficiency Score</div><div class="drv-val" id="dScore">—</div><div class="drv-sub">/ 100 (higher=better)</div></div>
+    </div>
+
+    <!-- Model comparison + feature importance -->
+    <div class="mdl-cmp fade-up">
+      <div class="fi-section">
+        <div class="fi-hdr">Efficiency — Top Features</div>
+        <div class="fi-body" id="fiEff">
+          {% set fi_eff = [("Seats",33.0),("Perf. Index",20.7),("Fast Charge",8.1),("Charge Ratio",6.6),("Top Speed",6.2),("Aero Penalty",6.1)] %}
+          {% for name,pct in fi_eff %}
+          <div class="fi-row">
+            <div class="fi-name">{{name}}</div>
+            <div class="fi-bar-wrap"><div class="fi-bar" style="width:{{pct/33*100}}%;background:linear-gradient(90deg,var(--c1),var(--c5));"></div></div>
+            <div class="fi-pct">{{pct}}%</div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="fi-section">
+        <div class="fi-hdr">Range — Top Features</div>
+        <div class="fi-body">
+          {% set fi_rng = [("Fast Charge",24.6),("Aero Penalty",16.0),("Perf. Index",14.8),("Top Speed",14.4),("Battery",7.6),("Efficiency",6.0)] %}
+          {% for name,pct in fi_rng %}
+          <div class="fi-row">
+            <div class="fi-name">{{name}}</div>
+            <div class="fi-bar-wrap"><div class="fi-bar" style="width:{{pct/24.6*100}}%;background:linear-gradient(90deg,var(--c2),var(--c1));"></div></div>
+            <div class="fi-pct">{{pct}}%</div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Model stats -->
+    <div class="mdl-cmp fade-up">
+      <div class="mdl-row">
+        <div class="mdl-title">⚡ Efficiency Model Metrics</div>
+        <div class="mdl-val"><span class="mdl-name">Ensemble R²</span><span class="mdl-score">0.800</span></div>
+        <div class="mdl-val"><span class="mdl-name">RMSE</span><span class="mdl-score" style="color:var(--c3)">14.94 Wh/km</span></div>
+        <div class="mdl-val"><span class="mdl-name">MAE</span><span class="mdl-score" style="color:var(--c3)">10.69 Wh/km</span></div>
+        <div class="mdl-val"><span class="mdl-name">Best base</span><span class="mdl-score" style="color:var(--c5)">Extra Trees</span></div>
+      </div>
+      <div class="mdl-row">
+        <div class="mdl-title">🛣️ Range Model Metrics</div>
+        <div class="mdl-val"><span class="mdl-name">Ensemble R²</span><span class="mdl-score">0.883</span></div>
+        <div class="mdl-val"><span class="mdl-name">RMSE</span><span class="mdl-score" style="color:var(--c3)">37.90 km</span></div>
+        <div class="mdl-val"><span class="mdl-name">MAE</span><span class="mdl-score" style="color:var(--c3)">28.40 km</span></div>
+        <div class="mdl-val"><span class="mdl-name">Best base</span><span class="mdl-score" style="color:var(--c5)">Extra Trees</span></div>
+      </div>
+    </div>
+
+    <div class="info-note fade-up">Ensemble = RF + Extra Trees + HistGradientBoosting · 15–17 engineered features · 286 EVs · 3 merged datasets · 5-fold cross-validated</div>
+
+    <!-- Model Comparison Visualization -->
+    <div style="background:var(--s1);border:1px solid var(--bdr);border-radius:8px;overflow:hidden;" class="fade-up">
+      <div style="padding:14px 20px;background:var(--s2);border-bottom:1px solid var(--bdr);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+        <div>
+          <div style="font-family:'Rajdhani',sans-serif;font-size:1rem;font-weight:700;letter-spacing:2px;color:#fff;">📊 Model Comparison — 5-Fold CV R²</div>
+          <div style="font-family:'Share Tech Mono',monospace;font-size:.6rem;letter-spacing:1.5px;color:var(--txtd);margin-top:4px;">Trained on 286 EVs · 4 algorithms compared · Ensemble is the deployed model</div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button onclick="showCmp('eff')" id="btnEff" class="btn btn-p btn-sm">⚡ Efficiency</button>
+          <button onclick="showCmp('rng')" id="btnRng" class="btn btn-g btn-sm">🛣️ Range</button>
+        </div>
+      </div>
+      <div style="padding:20px;">
+        <div style="position:relative;width:100%;height:200px;">
+          <canvas id="cmpChart"></canvas>
+        </div>
+        <div style="margin-top:16px;display:grid;grid-template-columns:repeat(4,1fr);gap:10px;" id="cmpCards"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function updateVal(id,v,unit){document.getElementById(id).textContent=v+unit;}
+
+async function run(){
+  const payload={
+    accel:      parseFloat(document.getElementById('sAccel').value),
+    speed:      parseFloat(document.getElementById('sSpeed').value),
+    capacity:   parseFloat(document.getElementById('sCap').value),
+    fast_charge:parseFloat(document.getElementById('sFC').value),
+    seats:      parseInt(document.getElementById('sSeats').value),
+    power_train:document.getElementById('sPT').value,
+    segment:    document.getElementById('sSeg').value,
+    body_style: document.getElementById('sBS').value,
+    rapid_charge:document.getElementById('sRC').value,
+  };
+  document.getElementById('spinner').style.display='flex';
+  try{
+    const res=await fetch('/api/predict',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const d=await res.json();
+    if(d.status==='ok') renderResults(d.result);
+    else console.error(d.message);
+  }catch(e){console.error(e);}
+  document.getElementById('spinner').style.display='none';
+}
+
+function renderResults(r){
+  const eff=r.pred_eff, rng=r.pred_rng;
+  const effEl=document.getElementById('rEff');
+  const rngEl=document.getElementById('rRng');
+  effEl.textContent=eff; effEl.style.fontSize='3.2rem';
+  rngEl.textContent=rng; rngEl.style.fontSize='3.2rem'; rngEl.style.color='var(--c2)';
+  document.getElementById('dReal').textContent=r.real_range;
+  document.getElementById('dCost').textContent='€'+r.cost_per_km;
+  document.getElementById('dValue').textContent=r.value_index;
+  document.getElementById('dScore').textContent=r.eff_score;
+  effEl.style.color=eff<165?'var(--c2)':eff<185?'var(--c1)':eff<210?'var(--c4)':'var(--c3)';
+  const effBadge=document.getElementById('effBadge');
+  const effTxt=eff<165?'Excellent':eff<185?'Good':eff<210?'Average':'High Consumption';
+  const effCls=eff<165?'bdg-g':eff<185?'bdg-b':eff<210?'bdg-y':'bdg-o';
+  effBadge.innerHTML=`<span class="bdg ${effCls}">${effTxt}</span>`;
+  const segBadge=document.getElementById('segBadge');
+  const segCls={'Premium Efficient':'bdg-g','Efficient':'bdg-b','Long Range':'bdg-p','Mid Range':'bdg-b','City Range':'bdg-y'}[r.segment_name]||'bdg-b';
+  segBadge.innerHTML=`<span class="bdg ${segCls}">${r.segment_name}</span>`;
+}
+
+// NO auto-run — user clicks Predict Now button only
+
+// ── Model Comparison — Line Chart (±std shaded band) ──────────
+// Verified 5-fold CV R² on 286 EVs (random_state=42)
+const CMP_DATA = {
+  eff: {
+    models: ['Random Forest','Extra Trees','HistGB','HistGB (Final ★)'],
+    r2:     [0.7863, 0.8024, 0.8112, 0.8292],
+    std:    [0.0153, 0.0192, 0.0287, 0.0243],
+    rmse:   [14.51,  13.94,  14.20,  13.82],
+    deployed:[false,  false,  false,  true],
+  },
+  rng: {
+    models: ['Random Forest','Extra Trees','HistGB','ET (Final ★)'],
+    r2:     [0.8203, 0.8341, 0.8050, 0.8352],
+    std:    [0.0521, 0.0648, 0.0478, 0.0631],
+    rmse:   [50.62,  48.43,  49.04,  48.43],
+    deployed:[false,  false,  false,  true],
+  }
+};
+
+let cmpChart = null;
+async function showCmp(mode) {
+  document.getElementById('btnEff').className = 'btn btn-sm ' + (mode==='eff' ? 'btn-p' : 'btn-o');
+  document.getElementById('btnRng').className = 'btn btn-sm ' + (mode==='rng' ? 'btn-g' : 'btn-o');
+  const d = CMP_DATA[mode];
+  const unit = mode==='eff' ? 'Wh/km' : 'km';
+  const lc   = mode==='eff' ? '#00d4ff' : '#00ff88';
+  const fill_rgba = mode==='eff' ? 'rgba(0,212,255,.08)' : 'rgba(0,255,136,.08)';
+  const upper = d.r2.map((v,i) => +(v+d.std[i]).toFixed(4));
+  const lower = d.r2.map((v,i) => +(v-d.std[i]).toFixed(4));
+  const pColors = d.deployed.map(dep => dep ? '#00ff88' : lc);
+  const pSizes  = d.deployed.map(dep => dep ? 10 : 6);
+
+  if (cmpChart) {
+    cmpChart.destroy();
+    cmpChart = null;
+  }
+  // small delay so ResizeObserver doesn't fire during destroy
+  await new Promise(r => setTimeout(r, 20));
+
+  const ctx = document.getElementById('cmpChart').getContext('2d');
+  cmpChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: d.models,
+      datasets: [
+        // dataset 0 = upper band, fills toward dataset 1 (the R² line)
+        { label:'+σ', data:upper, borderColor:'transparent', backgroundColor:fill_rgba,
+          pointRadius:0, fill:1, tension:0.4 },
+        // dataset 1 = main R² line
+        { label:'CV R²', data:d.r2, borderColor:lc, backgroundColor:'transparent',
+          pointBackgroundColor:pColors, pointBorderColor:pColors,
+          pointRadius:pSizes, pointHoverRadius:10,
+          borderWidth:2, tension:0.4, fill:false },
+        // dataset 2 = lower band, fills toward dataset 1
+        { label:'-σ', data:lower, borderColor:'transparent', backgroundColor:fill_rgba,
+          pointRadius:0, fill:1, tension:0.4 },
+      ]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false, resizeDelay:100,
+      animation:{ duration:400 },
+      plugins: {
+        legend:{ display:false },
+        tooltip:{
+          backgroundColor:'#071220', borderColor:'rgba(0,212,255,.25)', borderWidth:1,
+          titleColor:'#00d4ff', bodyColor:'#b8d4e8',
+          titleFont:{family:'Share Tech Mono',size:9}, bodyFont:{family:'Share Tech Mono',size:9},
+          filter: item => item.dataset.label==='CV R²',
+          callbacks:{
+            title: ctx => d.models[ctx[0].dataIndex],
+            label: ctx => [
+              ` R²   = ${ctx.raw.toFixed(4)}`,
+              ` ±std = ${d.std[ctx.dataIndex].toFixed(4)}`,
+              ` RMSE = ${d.rmse[ctx.dataIndex]} ${unit}`,
+              d.deployed[ctx.dataIndex] ? ' ★ DEPLOYED' : '',
+            ].filter(Boolean)
+          }
+        }
+      },
+      scales:{
+        y:{
+          min:0.76, max:0.87,
+          title:{display:true, text:'CV R²', color:'#3a6a8a', font:{family:'Share Tech Mono',size:8}},
+          ticks:{
+            color:'#3a6a8a', font:{family:'Share Tech Mono',size:8},
+            stepSize:0.02,
+            callback: v => v.toFixed(2)
+          },
+          grid:{color:'rgba(255,255,255,.04)'}
+        },
+        x:{
+          ticks:{color:'#b8d4e8', font:{family:'Share Tech Mono',size:8}, maxRotation:0},
+          grid:{color:'rgba(255,255,255,.02)'}
+        }
+      }
+    }
+  });
+
+  const cards = document.getElementById('cmpCards');
+  cards.innerHTML = d.r2.map((r2,i) => `
+    <div style="background:var(--s2);border:1px solid ${d.deployed[i]?'rgba(0,255,136,.35)':'var(--bdr)'};border-radius:6px;padding:12px 14px;${d.deployed[i]?'box-shadow:0 0 14px rgba(0,255,136,.1)':''}">
+      <div style="font-family:'Share Tech Mono',monospace;font-size:.55rem;letter-spacing:1.5px;color:var(--txtd);margin-bottom:5px;text-transform:uppercase;">
+        ${d.models[i]}&nbsp;${d.deployed[i]?'<span style="color:var(--c2)">★ LIVE</span>':''}
+      </div>
+      <div style="font-family:'Rajdhani',sans-serif;font-size:1.55rem;font-weight:700;color:${d.deployed[i]?'#00ff88':lc};line-height:1.1">${r2.toFixed(4)}</div>
+      <div style="font-family:'Share Tech Mono',monospace;font-size:.55rem;color:var(--txtd);margin-top:3px;">R² · ±${d.std[i].toFixed(4)}</div>
+      <div style="font-family:'Share Tech Mono',monospace;font-size:.55rem;color:var(--c3);margin-top:2px;">RMSE ${d.rmse[i]} ${unit}</div>
+    </div>`).join('');
+}
+
+window.addEventListener('DOMContentLoaded', () => showCmp('eff'));
+
+
+</script>
+{% endblock %}

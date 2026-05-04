@@ -1,0 +1,242 @@
+{% extends "base.html" %}
+{% block title %}EV Data Analysis{% endblock %}
+{% block nav_anal %}active{% endblock %}
+
+{% block extra_head %}
+<style>
+.cluster-legend{display:flex;gap:16px;flex-wrap:wrap;font-family:'Share Tech Mono',monospace;font-size:.65rem;letter-spacing:1.5px;color:var(--txtd);margin-bottom:20px;}
+.cl-item{display:flex;align-items:center;gap:7px;}
+.cl-dot{width:10px;height:10px;border-radius:50%;}
+.tbl-search{background:var(--s2);border:1px solid var(--bdr);color:var(--txt);padding:9px 14px;border-radius:4px;
+  font-family:'Share Tech Mono',monospace;font-size:.7rem;outline:none;width:260px;transition:border-color .3s;}
+.tbl-search:focus{border-color:var(--c1);}
+.tbl-count{font-family:'Share Tech Mono',monospace;font-size:.62rem;color:var(--txtd);letter-spacing:1px;}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="sec-hdr">
+  <div class="sec-title">EV Market Data Analysis</div>
+  <div class="sec-line"></div>
+  <div class="sec-tag">4 DATASETS MERGED · FLASK BACKEND</div>
+</div>
+
+<div class="cluster-legend">
+  <div class="cl-item"><div class="cl-dot" style="background:#00ff88"></div>BUDGET EV (&lt;320 km)</div>
+  <div class="cl-item"><div class="cl-dot" style="background:#00d4ff"></div>MID-RANGE EV (320–480 km)</div>
+  <div class="cl-item"><div class="cl-dot" style="background:#ffd700"></div>PREMIUM EV (&gt;480 km)</div>
+</div>
+
+<div class="grid-2">
+  <div class="card">
+    <div class="card-hdr">Battery Capacity vs Range</div>
+    <div class="chart-tall"><canvas id="scatterChart"></canvas></div>
+  </div>
+  <div class="card">
+    <div class="card-hdr">Top 15 Most Efficient EVs (Wh/km)</div>
+    <div class="chart-tall"><canvas id="effBar"></canvas></div>
+  </div>
+</div>
+
+<div class="grid-2" style="margin-top:20px;">
+  <div class="card">
+    <div class="card-hdr">Fast Charge Speed vs Range</div>
+    <div class="chart-tall"><canvas id="chargeChart"></canvas></div>
+  </div>
+  <div class="card">
+    <div class="card-hdr">Range Feature Importances (Retrained RF)</div>
+    <div class="chart-tall"><canvas id="impChart"></canvas></div>
+  </div>
+</div>
+
+<!-- Dataset table -->
+<div class="card" style="margin-top:22px;">
+  <div class="card-hdr" style="justify-content:space-between;">
+    <span>Full EV Dataset — 4 Datasets Merged</span>
+    <div style="display:flex;align-items:center;gap:14px;">
+      <input class="tbl-search" id="tblSearch" type="text" placeholder="Search model / brand…" oninput="filterTable()">
+      <span class="tbl-count" id="tblCount"></span>
+    </div>
+  </div>
+  <div style="overflow-x:auto;">
+    <table class="ev-tbl">
+      <thead><tr>
+        <th>Brand</th><th>Model</th><th>Accel (s)</th><th>Top Speed</th>
+        <th>Battery</th><th>Range</th><th>Efficiency</th>
+        <th>FastCharge</th><th>Seats</th><th>Drive</th><th>Segment</th><th>Cluster</th>
+      </tr></thead>
+      <tbody id="evTbody"></tbody>
+    </table>
+  </div>
+  <div class="info-note">Data from ElectricCarData_Clean · Cheapestelectriccars-EVDatabase · EVIndia · Charging Stations (excluded) · Served by Flask /api/dataset</div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const EV  = {{ ev_data|safe }};
+const IMP = {{ importances|safe }};
+
+const clC = {'Budget':'#00ff88','Mid-Range':'#00d4ff','Premium':'#ffd700'};
+const clGet = n => clC[n] || '#00d4ff';
+
+// ── Scatter: Battery Capacity vs Range ──────────────────────────
+const grps = {};
+EV.forEach(d => {
+  const cap = d.Capacity || 0;
+  const rng = d.Range_Km || 0;
+  if (cap <= 0 || rng <= 0) return;
+  const n = d.cluster_name || 'Mid-Range';
+  if (!grps[n]) grps[n] = [];
+  grps[n].push({ x: cap, y: rng, label: d.Model || d.Brand });
+});
+
+new Chart(document.getElementById('scatterChart'), {
+  type: 'scatter',
+  data: { datasets: Object.entries(grps).map(([n, pts]) => ({
+    label: n, data: pts,
+    backgroundColor: clGet(n) + 'aa', borderColor: clGet(n), pointRadius: 6
+  }))},
+  options: { responsive: true, maintainAspectRatio: false,
+    plugins: {
+      legend: { labels: { color:'#3a6a8a', font:{ family:'Share Tech Mono', size:9 }, boxWidth:10 }},
+      tooltip: { backgroundColor:'#071220', borderColor:'rgba(0,212,255,.3)', borderWidth:1,
+        titleColor:'#00d4ff', bodyColor:'#b8d4e8',
+        titleFont:{ family:'Share Tech Mono' }, bodyFont:{ family:'Share Tech Mono', size:9 },
+        callbacks: { title: i => i[0].raw.label || '', label: i => `${i.raw.x} kWh · ${i.raw.y} km` }
+      }
+    },
+    scales: {
+      x: { title:{ display:true, text:'Battery Capacity (kWh)', color:'#3a6a8a', font:{family:'Share Tech Mono',size:9} },
+           ticks:{color:'#3a6a8a',font:{family:'Share Tech Mono',size:9}}, grid:{color:'rgba(255,255,255,.03)'} },
+      y: { title:{ display:true, text:'Range (km)', color:'#3a6a8a', font:{family:'Share Tech Mono',size:9} },
+           ticks:{color:'#3a6a8a',font:{family:'Share Tech Mono',size:9}}, grid:{color:'rgba(255,255,255,.03)'} }
+    }
+  }
+});
+
+// ── Efficiency bar (top 15 with known efficiency) ───────────────
+const withEff = EV.filter(d => d.Efficiency_WhKm > 0);
+const sorted  = [...withEff].sort((a,b) => a.Efficiency_WhKm - b.Efficiency_WhKm).slice(0,15);
+new Chart(document.getElementById('effBar'), {
+  type: 'bar',
+  data: {
+    labels: sorted.map(d => (d.Model || d.Brand || '?').substring(0,18)),
+    datasets: [{ label:'Wh/km', data: sorted.map(d => d.Efficiency_WhKm),
+      backgroundColor: sorted.map(d => d.Efficiency_WhKm<155?'rgba(0,255,136,.7)':d.Efficiency_WhKm<185?'rgba(0,212,255,.7)':'rgba(255,107,53,.7)'),
+      borderColor:     sorted.map(d => d.Efficiency_WhKm<155?'#00ff88':d.Efficiency_WhKm<185?'#00d4ff':'#ff6b35'),
+      borderWidth:1, borderRadius:3 }]
+  },
+  options: { indexAxis:'y', responsive:true, maintainAspectRatio:false,
+    plugins: { legend:{display:false},
+      tooltip:{backgroundColor:'#071220',borderColor:'rgba(0,212,255,.3)',borderWidth:1,
+        titleColor:'#00d4ff',bodyColor:'#b8d4e8',
+        titleFont:{family:'Share Tech Mono'},bodyFont:{family:'Share Tech Mono',size:9}}
+    },
+    scales: {
+      x:{ title:{display:true,text:'Wh/km (lower = better)',color:'#3a6a8a',font:{family:'Share Tech Mono',size:9}},
+          ticks:{color:'#3a6a8a',font:{family:'Share Tech Mono',size:9}},grid:{color:'rgba(255,255,255,.03)'}},
+      y:{ ticks:{color:'#b8d4e8',font:{family:'Share Tech Mono',size:8}},grid:{color:'rgba(255,255,255,.02)'}}
+    }
+  }
+});
+
+// ── Fast Charge vs Range ─────────────────────────────────────────
+const fcData = EV.filter(d => d.FastCharge_KmH > 0 && d.Range_Km > 0);
+new Chart(document.getElementById('chargeChart'), {
+  type: 'scatter',
+  data: { datasets: [{ label:'EV Models',
+    data: fcData.map(d => ({ x: d.FastCharge_KmH, y: d.Range_Km, label: d.Model||d.Brand })),
+    backgroundColor: fcData.map(d => clGet(d.cluster_name) + '99'),
+    borderColor: fcData.map(d => clGet(d.cluster_name)), pointRadius:6 }]
+  },
+  options: { responsive:true, maintainAspectRatio:false,
+    plugins: { legend:{display:false},
+      tooltip:{backgroundColor:'#071220',borderColor:'rgba(0,212,255,.3)',borderWidth:1,
+        titleColor:'#00d4ff',bodyColor:'#b8d4e8',
+        titleFont:{family:'Share Tech Mono'},bodyFont:{family:'Share Tech Mono',size:9},
+        callbacks:{title:i=>i[0].raw.label||'',label:i=>`FC: ${i.raw.x} km/h · ${i.raw.y} km`}}
+    },
+    scales: {
+      x:{title:{display:true,text:'Fast Charge Speed (km/h)',color:'#3a6a8a',font:{family:'Share Tech Mono',size:9}},
+         ticks:{color:'#3a6a8a',font:{family:'Share Tech Mono',size:9}},grid:{color:'rgba(255,255,255,.03)'}},
+      y:{title:{display:true,text:'Range (km)',color:'#3a6a8a',font:{family:'Share Tech Mono',size:9}},
+         ticks:{color:'#3a6a8a',font:{family:'Share Tech Mono',size:9}},grid:{color:'rgba(255,255,255,.03)'}}
+    }
+  }
+});
+
+// ── Feature Importances ──────────────────────────────────────────
+const impLabels = {
+  "Fast Charge":"Fast Charge","Aero Penalty":"Aero Penalty","Performance Index":"Perf. Index",
+  "Top Speed":"Top Speed","Battery":"Battery","Efficiency":"Efficiency",
+  "Acceleration":"Acceleration","Power Density":"Power Density","Body Style":"Body Style","Seats":"Seats"
+};
+const impE = Object.entries(IMP).sort((a,b) => b[1]-a[1]);
+new Chart(document.getElementById('impChart'), {
+  type: 'bar',
+  data: {
+    labels: impE.map(([k]) => impLabels[k]||k),
+    datasets: [{ label:'Importance',
+      data: impE.map(([,v]) => +(v*100).toFixed(1)),
+      backgroundColor:'rgba(0,212,255,.6)', borderColor:'#00d4ff', borderWidth:1, borderRadius:4
+    }]
+  },
+  options: { responsive:true, maintainAspectRatio:false,
+    plugins:{ legend:{display:false},
+      tooltip:{backgroundColor:'#071220',borderColor:'rgba(0,212,255,.3)',borderWidth:1,
+        titleColor:'#00d4ff',bodyColor:'#b8d4e8',
+        titleFont:{family:'Share Tech Mono'},bodyFont:{family:'Share Tech Mono',size:9},
+        callbacks:{label:i=>`${i.raw}%`}}
+    },
+    scales:{
+      x:{ticks:{color:'#b8d4e8',font:{family:'Share Tech Mono',size:9}},grid:{color:'rgba(255,255,255,.03)'}},
+      y:{title:{display:true,text:'Importance (%)',color:'#3a6a8a',font:{family:'Share Tech Mono',size:9}},
+         ticks:{color:'#3a6a8a',font:{family:'Share Tech Mono',size:9}},grid:{color:'rgba(255,255,255,.03)'}}
+    }
+  }
+});
+
+// ── Table ────────────────────────────────────────────────────────
+let allRows = [];
+const tbody = document.getElementById('evTbody');
+
+function renderTable(data) {
+  tbody.innerHTML = '';
+  data.forEach(d => {
+    const e  = d.Efficiency_WhKm || 0;
+    const r  = d.Range_Km || 0;
+    const ec = e > 0 ? (e<155?'bdg-g':e<185?'bdg-b':'bdg-o') : 'bdg-y';
+    const cc = {'Budget':'bdg-g','Mid-Range':'bdg-b','Premium':'bdg-y'}[d.cluster_name] || 'bdg-b';
+    tbody.innerHTML += `<tr>
+      <td style="color:var(--c1)">${d.Brand||'—'}</td>
+      <td style="color:#fff">${(d.Model||d.Brand||'—').substring(0,24)}</td>
+      <td>${d.AccelSec > 0 ? d.AccelSec+'s' : '—'}</td>
+      <td>${d.TopSpeed_KmH > 0 ? d.TopSpeed_KmH+' km/h' : '—'}</td>
+      <td>${d.Capacity > 0 ? d.Capacity+' kWh' : '—'}</td>
+      <td style="color:var(--c2)">${r > 0 ? r+' km' : '—'}</td>
+      <td style="color:${e>0?(e<155?'var(--c2)':e<185?'var(--c1)':'var(--c3)'):'var(--txtd)'}">${e > 0 ? e+' Wh/km' : '—'}</td>
+      <td>${d.FastCharge_KmH > 0 ? d.FastCharge_KmH+' km/h' : '—'}</td>
+      <td>${d.Seats||'—'}</td>
+      <td><span class="bdg bdg-b">${d.PowerTrain||'—'}</span></td>
+      <td><span class="bdg bdg-p">${d.Segment||'—'}</span></td>
+      <td><span class="bdg ${cc}">${d.cluster_name||'—'}</span></td>
+    </tr>`;
+  });
+  document.getElementById('tblCount').textContent = `${data.length} / ${allRows.length} EVs`;
+}
+
+function filterTable() {
+  const q = document.getElementById('tblSearch').value.toLowerCase();
+  renderTable(q ? allRows.filter(d =>
+    (d.Model||'').toLowerCase().includes(q) ||
+    (d.Brand||'').toLowerCase().includes(q) ||
+    (d.PowerTrain||'').toLowerCase().includes(q) ||
+    (d.BodyStyle||'').toLowerCase().includes(q)
+  ) : allRows);
+}
+
+allRows = EV;
+renderTable(allRows);
+</script>
+{% endblock %}
